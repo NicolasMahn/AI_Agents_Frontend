@@ -1,0 +1,178 @@
+/* custom.css */
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    margin: 0;
+}
+
+footer {
+    background-color: #f8f9fa;
+    padding: 10px 20px;
+    text-align: center;
+    font-size: 0.9em;
+    border-top: 1px solid #e7e7e7;
+    margin-top: auto;
+}
+
+footer .impressum {
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
+/* Import a modern Google Font (Roboto) */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f4f7f9;
+    margin: 0;
+    padding: 0;
+}
+
+/* Container padding */
+.container, .container-fluid {
+    padding: 20px;
+}
+
+/* -----------------------------
+   Chat Section Styling
+----------------------------- */
+
+/* Chat history box with rounding */
+#chat-history, #dev-chat-history {
+    background-color: #ffffff;
+    border: 1px solid #ccc;
+    border-radius: 10px; /* Rounded corners */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+    height: 400px;
+    overflow-y: scroll;
+}
+
+/* Chat input styling with rounding */
+#chat-input, #dev-chat-input {
+    width: 100%;  /* Full width */
+    border: 1px solid #ddd;
+    border-radius: 10px;  /* Rounded corners */
+    padding: 10px;
+    font-size: 1rem;
+    transition: border 0.3s ease;
+}
+
+#chat-input:focus, #dev-chat-input:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+/* Send button with rounding */
+#send-chat-button, #dev-send-chat-button{
+    background-color: #007bff;
+    margin-right: 100px;
+    color: #fff;
+    border: none;
+    border-radius: 10px;  /* Rounded corners */
+    padding: 10px 20px;
+    margin-top: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#send-chat-button:hover, #dev-send-chat-button:hover {
+    background-color: #0056b3;
+}
+
+#reset-button {
+    background-color: grey;
+    color: #fff;
+    border: none;
+    border-radius: 10px;  /* Rounded corners */
+    padding: 10px 20px;
+    margin-top: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#reset-button:hover {
+    background-color: darkgray;
+}
+
+
+
+/* Base style for all chat messages inside the container */
+#chat-history div, #dev-chat-history div {
+    padding: 10px 15px;
+    border-radius: 15px;
+    margin: 5px 0;
+    word-wrap: break-word;
+}
+
+/* Styling for messages sent by the user ("You") */
+#you-msg {
+    background-color: #dcf8c6; /* Light green bubble */
+    align-self: flex-end;
+    text-align: right;
+}
+
+/* Styling for messages from the Bot */
+#bot-msg {
+    background-color: #ffffff;
+    align-self: flex-start;
+    text-align: left;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Styling for system messages */
+#system-msg {
+    background-color: #f0f0f0;
+    align-self: center;
+    text-align: center;
+    font-style: italic;
+}
+
+/* -----------------------------
+   File Upload Component Styling
+----------------------------- */
+
+/* File upload area with rounding */
+#upload-data {
+    width: 100%;
+    height: 60px;
+    border: none;
+    text-align: center;
+    margin: 10px 0;
+    background-color: #ffffff;
+    padding: 0 10px;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+#upload-data:hover {
+    background-color: #f1f8ff;
+    border-color: #0056b3;
+}
+
+/* -----------------------------
+   Dashboard Section Styling
+----------------------------- */
+
+/* Dashboard container with rounding */
+#dashboard {
+    background-color: #ffffff;
+    border-radius: 10px;  /* Rounded corners */
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    min-height: 400px;
+}
+
+/* -----------------------------
+   Responsive Adjustments
+----------------------------- */
+@media (max-width: 768px) {
+    #chat-history, #dev-chat-history {
+        height: 300px;
+    }
+}

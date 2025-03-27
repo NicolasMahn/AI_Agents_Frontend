@@ -1,0 +1,6 @@
+python-socketio
+eventlet
+dash
+dash-bootstrap-components
+dash-extensions
+flask
