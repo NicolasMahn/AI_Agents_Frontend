@@ -43,19 +43,19 @@ body {
 ----------------------------- */
 
 /* Chat history box with rounding */
-#chat-history, #dev-chat-history {
+#chat-history {
     background-color: #ffffff;
     border: 1px solid #ccc;
     border-radius: 10px; /* Rounded corners */
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     font-size: 0.9rem;
     margin-bottom: 20px;
-    height: 400px;
+    min-height: 400px;
     overflow-y: scroll;
 }
 
 /* Chat input styling with rounding */
-#chat-input, #dev-chat-input {
+#chat-input {
     width: 100%;  /* Full width */
     border: 1px solid #ddd;
     border-radius: 10px;  /* Rounded corners */
@@ -64,15 +64,14 @@ body {
     transition: border 0.3s ease;
 }
 
-#chat-input:focus, #dev-chat-input:focus {
+#chat-input:focus {
     outline: none;
     border-color: #007bff;
 }
 
-/* Send button with rounding */
-#send-chat-button, #dev-send-chat-button{
-    background-color: #007bff;
-    margin-right: 100px;
+button{
+    background-color: #4f752d;
+    margin-right: 30px;
     color: #fff;
     border: none;
     border-radius: 10px;  /* Rounded corners */
@@ -82,7 +81,24 @@ body {
     transition: background-color 0.3s ease;
 }
 
-#send-chat-button:hover, #dev-send-chat-button:hover {
+button:hover{
+    background-color: #334c1d;
+}
+
+/* Send button with rounding */
+#send-chat-button{
+    background-color: #007bff;
+    margin-right: 30px;
+    color: #fff;
+    border: none;
+    border-radius: 10px;  /* Rounded corners */
+    padding: 10px 20px;
+    margin-top: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#send-chat-button:hover{
     background-color: #0056b3;
 }
 
@@ -104,7 +120,7 @@ body {
 
 
 /* Base style for all chat messages inside the container */
-#chat-history div, #dev-chat-history div {
+#chat-history div{
     padding: 10px 15px;
     border-radius: 15px;
     margin: 5px 0;
@@ -165,7 +181,12 @@ body {
     border-radius: 10px;  /* Rounded corners */
     padding: 20px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    min-height: 400px;
+    height: 500px;
+}
+
+iframe {
+width: 100%;
+height: 100%;
 }
 
 /* -----------------------------

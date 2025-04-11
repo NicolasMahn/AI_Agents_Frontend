@@ -1,0 +1,544 @@
+import ast, re
+import shutil
+import socket
+import subprocess
+import sys
+import time
+
+import docker, os
+import psutil
+
+import backend_manager
+from util.colors import WHITE, RESET, LIGHT_GREEN
+
+DEFAULT_REQUIREMENTS = {
+    "pandas",
+    "numpy",
+    "matplotlib",
+    "seaborn",
+    "plotly",
+    "dash",
+    "scikit-learn",
+    "datetime"
+}
+MEM_LIMIT = "1025m"
+CPU_QUOTA = 100000
+
+def find_available_port(host='localhost'):
+    """
+    Finds and reserves an available port by binding to port 0.
+    Returns the port number assigned by the OS.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        # Binding to port 0 tells the OS to pick an available ephemeral port.
+        # Binding to host '' or '0.0.0.0' checks availability on all interfaces,
+        # while 'localhost' checks only for loopback. Choose based on need.
+        s.bind((host, 0))
+        s.listen(1) # Optional: Put socket into listening state
+        # getsockname() returns the (host, port) tuple the socket is bound to.
+        port = s.getsockname()[1]
+        # The 'with' statement ensures the socket is closed, releasing the port
+        # *unless* you plan to use this exact socket object.
+        # If you need the port number for a *different* process/socket,
+        # this still has a small race window, but it's much smaller and often
+        # acceptable compared to the check-then-bind approach.
+        # The *best* approach is to use the *same socket* that bound to port 0.
+    return port
+
+class Code:
+    def __init__(self, name: str, code: str, requirements, code_imports: list,
+                 input_files: list, output_files: list, frontend: bool, directory, agent, run_locally = False):
+        self.name =name
+        self.code = code
+        self.requirements = requirements
+        self.code_imports = code_imports
+
+        self.frontend = frontend
+        self.code_dir = os.path.abspath(directory)
+        self.agent = agent
+        self.run_locally = run_locally
+
+        self.logs :str= ""
+
+
+        self.container_input_files :list = []
+        self.container_output_files :list = []
+        self.input_files = input_files
+        if input_files:
+            for file in input_files:
+                self.input_files.append(os.path.abspath(os.path.join(self.code_dir, file)))
+                self.container_input_files.append(f"/files/{file}")
+
+        for file in output_files:
+            self.container_output_files.append(f"files/{file}")
+        self.output_dir = f"{self.code_dir}/output_files"
+
+        print("Container Input Files: ", self.container_input_files)
+        print("Input Files: ", input_files)
+        print("Self Input Files: ", self.input_files)
+        print("Container Output Files: ", self.container_output_files)
+        print("Output Files: ", output_files)
+
+
+        self.container = None
+        self.process = None
+        self.process = None
+        self.port = None
+        self.frontend_running = False
+        self.start_command_local = None
+        self.final_exec_path = ""
+
+        os.makedirs(self.output_dir, exist_ok=True)
+
+
+
+    def is_frontend(self):
+        return self.frontend
+
+    def has_output_files(self):
+        return bool(self.container_output_files)
+
+    def get_display_code(self):
+        display_code = ""
+
+        if self.requirements:
+            display_code += f"# Needs these requirements: {self.requirements}\n"
+
+        if self.code_imports:
+            display_code += f"# Code to be run previously: {self.code_imports}\n"
+
+        if self.input_files:
+            display_code += f"# Input files: {self.input_files}\n"
+
+        if self.container_output_files:
+            display_code += f"# Output files: {self.container_output_files}\n"
+
+        display_code += "\n\n"
+        display_code += self.code
+        return display_code
+
+    def get_execution_code(self, injection_code_front="", main_code_obj=None):
+        if not main_code_obj:
+            main_code_obj = self
+
+        if self.previous_outputs:
+            for previous_output in self.previous_outputs:
+                backend_manager.get_file(previous_output, save_directory=main_code_obj.code_dir)
+                if os.path.exists(previous_output):
+                    injection_code_front += f"""
+try:
+    _output_vars = pickle.load(open("{previous_output}", "rb"))
+    for key, value in _output_vars.items():
+        globals()[key] = value
+except Exception as e:
+    print("Error loading previous output_vars:", e)
+"""
+        for file in self.input_files:
+            backend_manager.get_file(file, save_directory=main_code_obj.code_dir)
+
+        if self.code_imports:
+            for code_name in self.code_imports:
+                code_obj = backend_manager.get_code(self.agent, code_name)
+                execution_code = code_obj.get_execution_code(main_code_obj=main_code_obj)
+                injection_code_front += execution_code
+
+        # Prepend the injection code to the user-provided code.
+        return injection_code_front + "\n" + self.code + "\n"
+
+
+    def execute(self):
+        self.code_path = os.path.join(self.code_dir, "generated_code.py")
+        with open(self.code_path, "w") as f:
+            f.write(self.get_execution_code())
+        self.start_command_local = f"python {self.code_path}"
+
+        self.main_path = None
+
+
+        command = f"python /code/generated_code.py"
+        volumes = {self.code_path: {"bind": "/code/generated_code.py", "mode": "rw"}}
+        volumes.update({
+            **{os.path.abspath(self.input_files[i]): {"bind": f"{self.container_input_files[i]}", "mode": "rw"}
+               for i in range(len(self.input_files))},
+            **{code_obj.output_file_path: {"bind": f"{code_obj.output_file_path}", "mode": "rw"}
+               for code_obj in self.previous_outputs},
+            })
+        client = docker.from_env()
+        if self.frontend:
+            command = f"python /code/main.py"
+
+            self.main_path = os.path.join(self.code_dir, "main.py")
+            with open(self.main_path, "w") as f:
+                f.write(
+                        f"""
+from generated_code import app
+
+if __name__ == '__main__':
+    app.run(debug=False, host='0.0.0.0', port={self.port})                       
+"""
+                    )
+            self.start_command_local = f"python {self.main_path}"
+
+            volumes[self.main_path]= {"bind": "/code/main.py", "mode": "rw"}
+
+            self.port = find_available_port()
+            self.container = client.containers.run(
+                image="custom-python",
+                command=command,
+                ports={self.port: self.port},
+                volumes=volumes,
+                detach=True,
+                mem_limit=MEM_LIMIT,
+                cpu_quota=CPU_QUOTA,
+                stdout=True, stderr=True
+            )
+        else:
+            self.container = client.containers.run(
+                image="custom-python",
+                command=command,
+                volumes=volumes,
+                detach=True,
+                mem_limit=MEM_LIMIT,
+                cpu_quota=CPU_QUOTA,
+                stdout=True, stderr=True
+            )
+        self.frontend_running = True
+        log_stream = self.container.logs(stream=True, follow=True, stdout=True, stderr=True)
+
+        for chunk in log_stream:
+            self.logs += chunk.decode('utf-8')
+
+    def execute_locally(self):
+        self.port = find_available_port()
+
+        if self.frontend:
+            self.main_path = os.path.join(self.code_dir, "main.py")
+            with open(self.main_path, "w") as f:
+                f.write(
+                    f"""
+from generated_code import app
+
+if __name__ == '__main__':
+    app.run(debug=False, host='0.0.0.0', port={self.port})                       
+"""
+                )
+            self.start_command_local = f"python {self.main_path}"
+
+        if self.requirements:
+            if self.requirements:
+                req_str = " ".join(self.requirements)
+                subprocess.run(["pip", "install"] + req_str.split())
+
+        # Run the command and stream the output
+        self.process = subprocess.Popen(self.start_command_local, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
+        self.frontend_running = True
+        # Stream the output line by line
+        for stdout_line in iter(self.process.stdout.readline, ""):
+            self.logs += stdout_line
+
+        # Wait for the process to complete
+        # self.process.stdout.close()
+        # self.process.wait()
+
+    def _prepare_execution_environment(self, target_dir):
+        """Fetches necessary files into the target directory."""
+        # Ensure the 'files' subdirectory exists in the target directory
+        files_subdir = os.path.join(target_dir, 'files')
+        os.makedirs(files_subdir, exist_ok=True)
+
+        # Fetch previous output pkl files (place them in the root of target_dir)
+        for pkl_file in self.previous_outputs:
+            # Assume backend_manager saves to target_dir/basename(pkl_file)
+            save_path = os.path.join(target_dir, os.path.basename(pkl_file))
+            try:
+                # Ensure backend_manager saves directly into target_dir
+                backend_manager.get_file(pkl_file, save_directory=target_dir)
+                print(f"Fetched previous output: {pkl_file} -> {save_path}")
+            except Exception as e:
+                print(f"{WHITE}Warning: Failed to fetch previous output '{pkl_file}': {e}{RESET}")
+
+        # Fetch input files (place them in the 'files' subdirectory)
+        for file_name in self.input_files:
+            # Assume backend_manager saves to target_dir/files/basename(file_name)
+            save_path = os.path.join(files_subdir, os.path.basename(file_name))
+            try:
+                # Ensure backend_manager saves into the 'files' subdirectory
+                backend_manager.get_file(file_name, save_directory=files_subdir)
+                print(f"Fetched input file: {file_name} -> {save_path}")
+            except Exception as e:
+                print(f"{WHITE}Warning: Failed to fetch input file '{file_name}': {e}{RESET}")
+
+    def create_executable(self):
+        """
+        Creates a standalone executable using PyInstaller.
+
+        Returns:
+            str: The absolute path to the created executable or the main executable within the output directory.
+                 Returns None if creation fails.
+
+        Raises:
+            RuntimeError: If PyInstaller is not found or if the build process fails.
+        """
+        print(f"\n{LIGHT_GREEN}--- Starting Executable Creation for '{self.name}' ---{RESET}")
+
+        # --- 1. Prerequisites Check ---
+        try:
+            # Check if PyInstaller is callable via `python -m PyInstaller`
+            check_cmd = [sys.executable, '-m', 'PyInstaller', '--version']
+            subprocess.run(check_cmd, check=True, capture_output=True, text=True)
+            print("PyInstaller found.")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            raise RuntimeError(
+                "PyInstaller not found or not runnable. Please install it (`pip install pyinstaller`) and ensure Python is in your PATH.")
+
+        # --- 2. Configuration ---
+        exec_name = self.name.replace(" ","_").lower()  # Use self.name if not provided, sanitize
+        dist_path = os.path.join(self.code_dir, "dist_executable")
+        build_path = os.path.join(self.code_dir, "build_executable")  # PyInstaller's working directory
+
+        # Clean previous build artifacts if they exist
+        if os.path.exists(dist_path):
+            print(f"Cleaning previous distribution directory: {dist_path}")
+            shutil.rmtree(dist_path)
+        if os.path.exists(build_path):
+            print(f"Cleaning previous build directory: {build_path}")
+            shutil.rmtree(build_path)
+
+        os.makedirs(dist_path, exist_ok=True)
+        # build_path will be created by PyInstaller
+
+        # --- 3. Prepare Code and Files ---
+        print("Preparing code and necessary files...")
+        # Create a temporary directory for bundling source and data files
+        bundle_src_dir = os.path.join(self.code_dir, "bundle_source")
+        if os.path.exists(bundle_src_dir):  # Clean previous temp source dir
+            shutil.rmtree(bundle_src_dir)
+        os.makedirs(bundle_src_dir)
+        # Also ensure the 'files' subdir exists within bundle_src_dir
+        os.makedirs(os.path.join(bundle_src_dir, 'files'), exist_ok=True)
+
+        # Fetch necessary input files and previous outputs into the bundle source directory
+        self._prepare_execution_environment(bundle_src_dir)
+
+        # Generate the Python code to be bundled
+        execution_code = self.get_execution_code()
+        generated_code_path_in_bundle = os.path.join(bundle_src_dir, "generated_code.py")
+        with open(generated_code_path_in_bundle, "w", encoding='utf-8') as f:
+            f.write(execution_code)
+
+        entry_point_path_in_bundle = generated_code_path_in_bundle  # Default entry point
+
+        # If it's a frontend, generate main.py as the entry point
+        if self.frontend:
+            # Generate main.py content (similar to execute method but for bundling)
+            # Important: Ensure 'app' is correctly defined in generated_code.py
+            main_py_content = f"""
+# Main entry point for bundled frontend application
+import os
+import sys
+# Ensure generated_code module is discoverable if using one-dir mode
+# For one-file mode, imports should generally work if bundled correctly.
+# Base directory logic might differ slightly when frozen.
+if getattr(sys, 'frozen', False):
+    # If the application is run as a bundle, the PyInstaller bootloader
+    # extends the sys module by a flag frozen=True and sets the app path sys._MEIPASS.
+    application_path = os.path.dirname(sys.executable)
+    # If using one-dir, generated_code might be alongside executable
+    # If using one-file, it's extracted to a temp dir sys._MEIPASS
+    # Trying relative import often works if PyInstaller structure is standard
+else:
+    # Running as a normal script
+    application_path = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, application_path) # Ensure generated_code is found
+
+
+try:
+    from generated_code import app # Assumes app is defined in generated_code.py
+except ImportError:
+    print("Error: Could not find 'app' variable in generated_code.py.")
+    # Provide more guidance if possible
+    sys.exit(1)
+except Exception as e:
+    print(f"An error occurred during import from generated_code: {{e}}")
+    sys.exit(1)
+
+
+if __name__ == '__main__':
+    print("Starting bundled frontend application...")
+    # Port needs to be fixed or configured differently for bundled app
+    # Using a default or reading from config might be better than find_available_port
+    configured_port = {self.port or 8050} # Use last known port or default
+    host_address = '127.0.0.1'
+    print(f"Attempting to run on http://{{host_address}}:{{configured_port}}")
+    try:
+        # Note: Development server (app.run) might not be ideal for distribution.
+        # Consider using a production-ready server like waitress or gunicorn
+        # and configuring PyInstaller to run that.
+        # Example with waitress (requires pip install waitress):
+        # from waitress import serve
+        # serve(app, host=host_address, port=configured_port)
+        app.run(debug=False, port=configured_port, host=host_address) # Using dev server for now
+    except Exception as e:
+        print(f"Error running the bundled frontend application: {{e}}")
+        # Keep console open or log to file in bundled app for debugging
+        input("Press Enter to exit...") # Simple way to keep console open on error
+        sys.exit(1)
+
+"""
+            entry_point_path_in_bundle = os.path.join(bundle_src_dir, "main.py")
+            with open(entry_point_path_in_bundle, "w", encoding='utf-8') as f:
+                f.write(main_py_content)
+            print(f"Generated frontend entry point: {entry_point_path_in_bundle}")
+        else:
+            print(f"Using standard entry point: {entry_point_path_in_bundle}")
+
+        # --- 4. Construct PyInstaller Command ---
+        pyinstaller_command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', f'--name={exec_name}',
+                               f'--distpath={os.path.abspath(dist_path)}', f'--workpath={os.path.abspath(build_path)}',
+                               entry_point_path_in_bundle, '--onefile'] #, '--noconsole']
+
+
+        # Add data files (input files, pkl files) that were prepared in bundle_src_dir
+        # PyInstaller needs source path relative to CWD *or* absolute path,
+        # and destination path relative to the *bundle's root*.
+        data_separator = ';' if sys.platform == 'win32' else ':'  # Platform-specific separator
+
+        # Add the 'files' subdirectory containing input data
+        files_src_path = os.path.join(bundle_src_dir, 'files')
+        if os.path.isdir(files_src_path) and os.listdir(files_src_path):  # Check if dir exists and is not empty
+            pyinstaller_command.append(f'--add-data={os.path.abspath(files_src_path)}{data_separator}files')
+            print(f"Adding data directory: {files_src_path} -> files")
+
+        # Add previous output .pkl files (expected in the root of the bundle)
+        for pkl_file in self.previous_outputs:
+            pkl_basename = os.path.basename(pkl_file)
+            pkl_src_path = os.path.join(bundle_src_dir, pkl_basename)
+            if os.path.exists(pkl_src_path):
+                pyinstaller_command.append(f'--add-data={os.path.abspath(pkl_src_path)}{data_separator}.')
+                print(f"Adding data file: {pkl_src_path} -> .")
+
+
+        # --- 5. Execute PyInstaller ---
+        print(f"\nRunning PyInstaller command:")
+        # Print command safely for debugging (handles spaces in paths)
+        print(" ".join(f'"{arg}"' if " " in arg else arg for arg in pyinstaller_command))
+
+        try:
+            # Run PyInstaller. CWD doesn't strictly matter here as we use absolute paths / self-contained source dir.
+            process = subprocess.run(
+                pyinstaller_command,
+                check=True,  # Raise CalledProcessError on failure
+                capture_output=True,  # Capture stdout/stderr
+                text=True,  # Decode output as text
+                encoding='utf-8'  # Specify encoding
+            )
+            print("\nPyInstaller STDOUT:")
+            print(process.stdout)
+            if process.stderr:
+                print("\nPyInstaller STDERR:")
+                print(process.stderr)
+            print(f"\n{LIGHT_GREEN}Successfully created executable in: {os.path.abspath(dist_path)}{RESET}")
+
+            # Determine the final executable path
+
+
+            exec_filename = f"{exec_name}.exe" if sys.platform == 'win32' else exec_name
+            self.final_exec_path = os.path.join(dist_path, exec_filename)
+
+            if os.path.exists(self.final_exec_path):
+                print(f"Executable path: {self.final_exec_path}")
+
+                # --- 6. Cleanup ---
+                print("Cleaning up temporary build files...")
+                if os.path.exists(build_path):
+                    shutil.rmtree(build_path)
+                if os.path.exists(bundle_src_dir):
+                    shutil.rmtree(bundle_src_dir)
+                # Remove the .spec file generated by PyInstaller in the script's directory (or bundle_src_dir)
+                spec_file = f"{exec_name}.spec"
+                if os.path.exists(spec_file):
+                    os.remove(spec_file)
+                if os.path.exists(os.path.join(bundle_src_dir, spec_file)):
+                    os.remove(os.path.join(bundle_src_dir, spec_file))
+
+                return self.final_exec_path
+            else:
+                print(f"{WHITE}Error: Expected executable not found at {self.final_exec_path}{RESET}")
+                return None
+
+
+        except subprocess.CalledProcessError as e:
+            print(f"\n{WHITE}Error during PyInstaller execution (Return Code: {e.returncode}){RESET}")
+            print("--- PyInstaller STDOUT ---")
+            print(e.stdout)
+            print("--- PyInstaller STDERR ---")
+            print(e.stderr)
+            # Also cleanup build/temp dirs on failure
+            if os.path.exists(build_path): shutil.rmtree(build_path)
+            if os.path.exists(bundle_src_dir): shutil.rmtree(bundle_src_dir)
+            raise RuntimeError(
+                f"PyInstaller failed to build the executable. Check the logs above. STDERR: {e.stderr}") from e
+        except Exception as e:
+            # Cleanup on other errors too
+            if os.path.exists(build_path): shutil.rmtree(build_path)
+            if os.path.exists(bundle_src_dir): shutil.rmtree(bundle_src_dir)
+            raise RuntimeError(f"An unexpected error occurred during executable creation: {e}") from e
+
+    def stop(self):
+        if self.container:
+            self.container.stop()
+            self.container.remove()
+            self.container = None
+        if self.process:
+            # --- Inside your stop method ---
+            if self.process and self.process.poll() is None:
+                parent_pid = self.process.pid
+                print(f"Attempting to terminate process tree starting from PID {parent_pid}...")
+                try:
+                    parent = psutil.Process(parent_pid)
+                    # Iterate through children recursively and terminate them first
+                    children = parent.children(recursive=True)
+                    for child in children:
+                        print(f"Terminating child process {child.pid}...")
+                        try:
+                            child.kill()  # Force kill children
+                        except psutil.NoSuchProcess:
+                            print(f"Child process {child.pid} already gone.")
+                        except psutil.AccessDenied:
+                            print(f"Access denied trying to kill child process {child.pid}.")
+
+                    # Now terminate the parent process itself
+                    print(f"Terminating parent process {parent_pid}...")
+                    try:
+                        parent.kill()
+                    except psutil.NoSuchProcess:
+                        print(f"Parent process {parent_pid} already gone before final kill.")
+                    except psutil.AccessDenied:
+                        print(f"Access denied trying to kill parent process {parent_pid}.")
+
+                    # Wait briefly for processes to disappear
+                    gone, still_alive = psutil.wait_procs([parent] + children, timeout=3)
+                    for p in still_alive:
+                        print(f"Process {p.pid} stubborn, did not terminate.")
+
+                    print(f"Process tree termination attempt completed for PID {parent_pid}.")
+
+                except psutil.NoSuchProcess:
+                    print(f"Process {parent_pid} not found. Already terminated?")
+                except psutil.AccessDenied:
+                    print(f"Access denied trying to access process {parent_pid} or its children.")
+                except Exception as e:
+                    print(f"An error occurred during psutil termination: {e}")
+
+                self.process = None  # Clear the Popen object reference
+            else:
+                print("Process already stopped or does not exist.")
+            time.sleep(1)
+            print("stopping...")
+        self.frontend_running = False
+        self.logs = "\n"
+
+    def get_name(self):
+        return self.name
+
+

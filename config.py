@@ -1,2 +1,3 @@
+import os
 
-AGENT = None
+DEBUG = os.getenv("DEBUG", False)

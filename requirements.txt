@@ -4,3 +4,13 @@ dash
 dash-bootstrap-components
 dash-extensions
 flask
+docker
+psutil
+pyinstaller
+pandas
+numpy
+matplotlib
+plotly
+seaborn
+scikit-learn
+datetime

@@ -4,7 +4,6 @@ import requests
 
 import config
 import frontend
-from config import AGENT
 from scrt import BACKEND_HOST, BACKEND_PORT
 
 backend_url = f'http://{BACKEND_HOST}:{BACKEND_PORT}'
@@ -49,61 +48,67 @@ def put_request(route, data=None):
         return None
 
 
-def ensure_agent():
-    if not config.AGENT:
-        frontend.set_agent_from_url()
-    if not config.AGENT:
-        return False
-    return True
-
-
-def reset_agent():
-    if ensure_agent():
-        return delete_request(f'{config.AGENT}/reset_agent')
+def reset_agent(agent):
+    if agent:
+        return delete_request(f'{agent}/reset_agent')
     return None
 
-def upload_file(contents, filename: str):
-    if ensure_agent():
-        return post_request(f'{config.AGENT}/upload_file', data={'contents': contents, 'filename': filename})
+def upload_file(contents, filename: str, agent):
+    if agent:
+        return post_request(f'{agent}/upload_file', data={'contents': contents, 'filename': filename})
     return None
 
-def add_message(text: str):
-    if ensure_agent():
-        return put_request(f'{config.AGENT}/add_message', data={'text': text})
+def add_message(text: str, agent):
+    if agent:
+        return put_request(f'{agent}/add_message', data={'text': text})
     return None
 
-def get_chat_history(selected_chat: str):
-    if ensure_agent():
-        return get_request(f'{config.AGENT}/get_chat_history/{selected_chat}')
+def get_chat_history(selected_chat: str, agent):
+    if agent:
+        return get_request(f'{agent}/get_chat_history/{selected_chat}')
     return None
 
-def agent_codes():
-    if ensure_agent():
-        return get_request(f'{config.AGENT}/does_agent_code')
+def agent_codes(agent):
+    if agent:
+        return get_request(f'{agent}/does_agent_code')
     return None
 
-def get_available_chats():
-    if ensure_agent():
-        return get_request(f'{config.AGENT}/get_chats')
+def get_available_chats(agent):
+    if agent:
+        return get_request(f'{agent}/get_chats')
     return None
 
-def get_dashboard():
-    if ensure_agent():
-        return get_request(f'{config.AGENT}/get_dashboard')
+def get_code(agent, code_name: str = "latest"):
+    if agent:
+        return get_request(f'{agent}/get_code/{code_name}')
     return None
 
-def get_code(code_name: str = "latest"):
-    if ensure_agent():
-        return get_request(f'{config.AGENT}/get_code/{code_name}')
-    return None
-
-def get_code_names():
-    if ensure_agent():
-        return get_request(f'{config.AGENT}/get_code_names')
+def get_code_names(agent):
+    if agent:
+        return get_request(f'{agent}/get_code_names')
     return None
 
 def get_agents():
     return get_request('get_agents')
+
+def get_available_models():
+    return get_request(f'get_available_models')
+
+def set_model(model):
+    return post_request(f'set_model/{model}')
+
+def get_model():
+    return get_request('get_model')
+
+def get_file(filepath_on_server, save_directory):
+    response = requests.get(f'{backend_url}/{filepath_on_server}')
+    if response.status_code == 200:
+        with open(f'{save_directory}/{filepath_on_server.split("/")[-1]}', 'wb') as f:
+            f.write(response.content)
+        return True
+    else:
+        print(f"Failed to download file: {response.status_code}")
+
 
 
 

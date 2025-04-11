@@ -3,8 +3,6 @@ from dash import html, dcc, Input, Output, State
 import dash_bootstrap_components as dbc
 
 import config
-from config import AGENT
-
 import backend_manager
 
 dash.register_page(__name__, path="/select-agents")
@@ -23,7 +21,7 @@ layout = dbc.Container([
 
 @dash.callback(
     [Output("agent-list", "children"),
-        Output("agents", "data")],
+     Output("agents", "data")],
     Input("agent-interval", "n_intervals"),
 )
 def update_agent_list(n_intervals):
@@ -38,19 +36,19 @@ def update_agent_list(n_intervals):
     return html.Div(agent_list), agents
 
 @dash.callback(
-    Output("url", "pathname", allow_duplicate=True),
+    [Output("url", "pathname"),
+     Output("agent-type", "data")],
     Input({'type': 'agent-button', 'index': dash.dependencies.ALL}, 'n_clicks'),
     [State({'type': 'agent-button', 'index': dash.dependencies.ALL}, 'id'),
      State("agents", "data")],
-    prevent_initial_call=True
 )
 def select_agent(n_clicks, button_ids, agents):
     if any(n_clicks):
         for i, n in enumerate(n_clicks):
             if n:
                 agent_index = button_ids[i]['index']
-                config.AGENT = agents[agent_index]
+                agent = agents[agent_index]
 
 
-                return f"/{config.AGENT}"
-    return dash.no_update
+                return f"/{agent}", agent
+    return dash.no_update, dash.no_update
