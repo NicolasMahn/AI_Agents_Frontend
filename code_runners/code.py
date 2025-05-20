@@ -47,7 +47,7 @@ def find_available_port(host='localhost'):
 
 class Code:
     def __init__(self, name: str, code: str, requirements, code_imports: list,
-                 input_files: list, output_files: list, frontend: bool, directory, agent, run_locally = False):
+                 input_files: list, frontend: bool, directory, agent, run_locally = False):
         self.name =name
         self.code = code
         self.requirements = requirements
@@ -58,45 +58,38 @@ class Code:
         self.agent = agent
         self.run_locally = run_locally
 
-        self.logs :str= ""
+        self.logs :str = ""
 
-
-        self.container_input_files :list = []
-        self.container_output_files :list = []
         self.input_files = input_files
-        if input_files:
-            for file in input_files:
-                self.input_files.append(os.path.abspath(os.path.join(self.code_dir, file)))
-                self.container_input_files.append(f"/files/{file}")
 
-        for file in output_files:
-            self.container_output_files.append(f"files/{file}")
-        self.output_dir = f"{self.code_dir}/output_files"
 
-        print("Container Input Files: ", self.container_input_files)
-        print("Input Files: ", input_files)
-        print("Self Input Files: ", self.input_files)
-        print("Container Output Files: ", self.container_output_files)
-        print("Output Files: ", output_files)
+        self.input_dir = os.path.join(self.code_dir, "input_files")
+        os.makedirs(self.input_dir, exist_ok=True)
 
+        self.local_input_file_paths = []
+        for file in self.input_files:
+            file_content = backend_manager.get_file(file)
+            if file_content:
+                local_path = f'{self.code_dir}/input_files/{os.path.basename(file)}'
+                self.local_input_file_paths.append(local_path)
+                with open(local_path, 'wb') as f:
+                    f.write(file_content)
+
+        self.output_dir = os.path.join(self.code_dir, "output_files")
+        os.makedirs(self.output_dir, exist_ok=True)
 
         self.container = None
         self.process = None
         self.process = None
         self.port = None
-        self.frontend_running = False
+        self.running = False
         self.start_command_local = None
         self.final_exec_path = ""
-
-        os.makedirs(self.output_dir, exist_ok=True)
-
 
 
     def is_frontend(self):
         return self.frontend
 
-    def has_output_files(self):
-        return bool(self.container_output_files)
 
     def get_display_code(self):
         display_code = ""
@@ -110,9 +103,6 @@ class Code:
         if self.input_files:
             display_code += f"# Input files: {self.input_files}\n"
 
-        if self.container_output_files:
-            display_code += f"# Output files: {self.container_output_files}\n"
-
         display_code += "\n\n"
         display_code += self.code
         return display_code
@@ -120,21 +110,6 @@ class Code:
     def get_execution_code(self, injection_code_front="", main_code_obj=None):
         if not main_code_obj:
             main_code_obj = self
-
-        if self.previous_outputs:
-            for previous_output in self.previous_outputs:
-                backend_manager.get_file(previous_output, save_directory=main_code_obj.code_dir)
-                if os.path.exists(previous_output):
-                    injection_code_front += f"""
-try:
-    _output_vars = pickle.load(open("{previous_output}", "rb"))
-    for key, value in _output_vars.items():
-        globals()[key] = value
-except Exception as e:
-    print("Error loading previous output_vars:", e)
-"""
-        for file in self.input_files:
-            backend_manager.get_file(file, save_directory=main_code_obj.code_dir)
 
         if self.code_imports:
             for code_name in self.code_imports:
@@ -147,41 +122,46 @@ except Exception as e:
 
 
     def execute(self):
-        self.code_path = os.path.join(self.code_dir, "generated_code.py")
-        with open(self.code_path, "w") as f:
-            f.write(self.get_execution_code())
-        self.start_command_local = f"python {self.code_path}"
+        code_path = os.path.join(self.code_dir, "generated_code.py")
+        with open(code_path, "w") as f:
+            f.write(self.get_execution_code("import pickle \n"
+                                            "import os\n"
+                                            "os.makedirs('output', exist_ok=True)\n"))
 
-        self.main_path = None
-
-
-        command = f"python /code/generated_code.py"
-        volumes = {self.code_path: {"bind": "/code/generated_code.py", "mode": "rw"}}
-        volumes.update({
-            **{os.path.abspath(self.input_files[i]): {"bind": f"{self.container_input_files[i]}", "mode": "rw"}
-               for i in range(len(self.input_files))},
-            **{code_obj.output_file_path: {"bind": f"{code_obj.output_file_path}", "mode": "rw"}
-               for code_obj in self.previous_outputs},
-            })
+        start_command = f"python /code/generated_code.py"
+        volumes = {code_path: {"bind": "/code/generated_code.py", "mode": "rw"},
+                   self.input_dir: {"bind": "/code/uploads/", "mode": "rw"},
+                   self.output_dir: {"bind": "/code/output/", "mode": "rw"}}
         client = docker.from_env()
-        if self.frontend:
-            command = f"python /code/main.py"
 
-            self.main_path = os.path.join(self.code_dir, "main.py")
-            with open(self.main_path, "w") as f:
+        if self.frontend:
+            start_command = f"python /code/main.py"
+
+        # Process any extra requirements.
+        if self.requirements:
+            req_str = " ".join(self.requirements)
+            # Enable network access to allow pip to install missing packages.
+            command = f"sh -c 'pip install {req_str} && {start_command}'"
+        else:
+            # Nothing extra to install.
+            command = start_command
+
+        if self.frontend:
+            self.port = find_available_port()
+            main_path = os.path.join(self.code_dir, "main.py")
+            with open(main_path, "w") as f:
                 f.write(
                         f"""
 from generated_code import app
 
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port={self.port})                       
+    app.run(debug=False, host='0.0.0.0', port={self.port})
 """
                     )
-            self.start_command_local = f"python {self.main_path}"
 
-            volumes[self.main_path]= {"bind": "/code/main.py", "mode": "rw"}
+            volumes[main_path]= {"bind": "/code/main.py", "mode": "rw"}
 
-            self.port = find_available_port()
+
             self.container = client.containers.run(
                 image="custom-python",
                 command=command,
@@ -202,43 +182,12 @@ if __name__ == '__main__':
                 cpu_quota=CPU_QUOTA,
                 stdout=True, stderr=True
             )
-        self.frontend_running = True
+            print(self.container.id)
+        self.running = True
         log_stream = self.container.logs(stream=True, follow=True, stdout=True, stderr=True)
 
         for chunk in log_stream:
             self.logs += chunk.decode('utf-8')
-
-    def execute_locally(self):
-        self.port = find_available_port()
-
-        if self.frontend:
-            self.main_path = os.path.join(self.code_dir, "main.py")
-            with open(self.main_path, "w") as f:
-                f.write(
-                    f"""
-from generated_code import app
-
-if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port={self.port})                       
-"""
-                )
-            self.start_command_local = f"python {self.main_path}"
-
-        if self.requirements:
-            if self.requirements:
-                req_str = " ".join(self.requirements)
-                subprocess.run(["pip", "install"] + req_str.split())
-
-        # Run the command and stream the output
-        self.process = subprocess.Popen(self.start_command_local, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
-        self.frontend_running = True
-        # Stream the output line by line
-        for stdout_line in iter(self.process.stdout.readline, ""):
-            self.logs += stdout_line
-
-        # Wait for the process to complete
-        # self.process.stdout.close()
-        # self.process.wait()
 
     def _prepare_execution_environment(self, target_dir):
         """Fetches necessary files into the target directory."""
@@ -246,27 +195,21 @@ if __name__ == '__main__':
         files_subdir = os.path.join(target_dir, 'files')
         os.makedirs(files_subdir, exist_ok=True)
 
-        # Fetch previous output pkl files (place them in the root of target_dir)
-        for pkl_file in self.previous_outputs:
-            # Assume backend_manager saves to target_dir/basename(pkl_file)
-            save_path = os.path.join(target_dir, os.path.basename(pkl_file))
-            try:
-                # Ensure backend_manager saves directly into target_dir
-                backend_manager.get_file(pkl_file, save_directory=target_dir)
-                print(f"Fetched previous output: {pkl_file} -> {save_path}")
-            except Exception as e:
-                print(f"{WHITE}Warning: Failed to fetch previous output '{pkl_file}': {e}{RESET}")
-
         # Fetch input files (place them in the 'files' subdirectory)
-        for file_name in self.input_files:
+        for i, file in enumerate(self.input_files):
             # Assume backend_manager saves to target_dir/files/basename(file_name)
-            save_path = os.path.join(files_subdir, os.path.basename(file_name))
+            save_path = os.path.join(files_subdir, os.path.basename(file))
             try:
-                # Ensure backend_manager saves into the 'files' subdirectory
-                backend_manager.get_file(file_name, save_directory=files_subdir)
-                print(f"Fetched input file: {file_name} -> {save_path}")
+                file_content = backend_manager.get_file(file)
+                if file_content:
+                    os.makedirs(
+                        os.path.dirname(files_subdir),
+                        exist_ok=True)
+                    with open(f'{files_subdir}/{os.path.basename(file)}', 'wb') as f:
+                        f.write(file_content)
+                print(f"Fetched input file: {file} -> {save_path}")
             except Exception as e:
-                print(f"{WHITE}Warning: Failed to fetch input file '{file_name}': {e}{RESET}")
+                print(f"{WHITE}Warning: Failed to fetch input file '{file}': {e}{RESET}")
 
     def create_executable(self):
         """
@@ -395,7 +338,7 @@ if __name__ == '__main__':
         # --- 4. Construct PyInstaller Command ---
         pyinstaller_command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', f'--name={exec_name}',
                                f'--distpath={os.path.abspath(dist_path)}', f'--workpath={os.path.abspath(build_path)}',
-                               entry_point_path_in_bundle, '--onefile'] #, '--noconsole']
+                               entry_point_path_in_bundle, '--onefile', '--clean'] #, '--noconsole']
 
 
         # Add data files (input files, pkl files) that were prepared in bundle_src_dir
@@ -408,14 +351,6 @@ if __name__ == '__main__':
         if os.path.isdir(files_src_path) and os.listdir(files_src_path):  # Check if dir exists and is not empty
             pyinstaller_command.append(f'--add-data={os.path.abspath(files_src_path)}{data_separator}files')
             print(f"Adding data directory: {files_src_path} -> files")
-
-        # Add previous output .pkl files (expected in the root of the bundle)
-        for pkl_file in self.previous_outputs:
-            pkl_basename = os.path.basename(pkl_file)
-            pkl_src_path = os.path.join(bundle_src_dir, pkl_basename)
-            if os.path.exists(pkl_src_path):
-                pyinstaller_command.append(f'--add-data={os.path.abspath(pkl_src_path)}{data_separator}.')
-                print(f"Adding data file: {pkl_src_path} -> .")
 
 
         # --- 5. Execute PyInstaller ---
@@ -486,59 +421,21 @@ if __name__ == '__main__':
 
     def stop(self):
         if self.container:
-            self.container.stop()
-            self.container.remove()
-            self.container = None
-        if self.process:
-            # --- Inside your stop method ---
-            if self.process and self.process.poll() is None:
-                parent_pid = self.process.pid
-                print(f"Attempting to terminate process tree starting from PID {parent_pid}...")
-                try:
-                    parent = psutil.Process(parent_pid)
-                    # Iterate through children recursively and terminate them first
-                    children = parent.children(recursive=True)
-                    for child in children:
-                        print(f"Terminating child process {child.pid}...")
-                        try:
-                            child.kill()  # Force kill children
-                        except psutil.NoSuchProcess:
-                            print(f"Child process {child.pid} already gone.")
-                        except psutil.AccessDenied:
-                            print(f"Access denied trying to kill child process {child.pid}.")
-
-                    # Now terminate the parent process itself
-                    print(f"Terminating parent process {parent_pid}...")
-                    try:
-                        parent.kill()
-                    except psutil.NoSuchProcess:
-                        print(f"Parent process {parent_pid} already gone before final kill.")
-                    except psutil.AccessDenied:
-                        print(f"Access denied trying to kill parent process {parent_pid}.")
-
-                    # Wait briefly for processes to disappear
-                    gone, still_alive = psutil.wait_procs([parent] + children, timeout=3)
-                    for p in still_alive:
-                        print(f"Process {p.pid} stubborn, did not terminate.")
-
-                    print(f"Process tree termination attempt completed for PID {parent_pid}.")
-
-                except psutil.NoSuchProcess:
-                    print(f"Process {parent_pid} not found. Already terminated?")
-                except psutil.AccessDenied:
-                    print(f"Access denied trying to access process {parent_pid} or its children.")
-                except Exception as e:
-                    print(f"An error occurred during psutil termination: {e}")
-
-                self.process = None  # Clear the Popen object reference
-            else:
-                print("Process already stopped or does not exist.")
-            time.sleep(1)
-            print("stopping...")
-        self.frontend_running = False
+            self.container.remove(force=True)
+        self.container = None
+        self.running = False
         self.logs = "\n"
+
+    def delete(self):
+        self.stop()
+        shutil.rmtree(self.code_dir)
 
     def get_name(self):
         return self.name
+
+    def zip_code_dir(self):
+        zip_base_name = os.path.join(os.path.dirname(self.code_dir), self.get_name())
+        shutil.make_archive(base_name=zip_base_name, format="zip", root_dir=self.code_dir)
+        return f"{zip_base_name}.zip"
 
 

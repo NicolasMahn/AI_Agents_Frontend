@@ -42,17 +42,263 @@ body {
    Chat Section Styling
 ----------------------------- */
 
-/* Chat history box with rounding */
+
+/* ---- Modern Dropdown Styling ---- */
+
+/* Add margin to the overall dropdown container */
+.modern-dropdown {
+    margin-bottom: 20px; /* Spacing below the dropdown */
+    font-family: sans-serif; /* Optional: Set a base font */
+}
+
+/* Style the main control container (the visible input-like part) */
+.modern-dropdown .Select__control {
+    background-color: #ffffff;
+    border: 1px solid #ccc;
+    border-radius: 8px; /* Rounded corners */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+    min-height: 38px; /* Adjust based on font size/padding */
+    cursor: pointer;
+    transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+/* Style the control container when focused */
+.modern-dropdown .Select__control--is-focused {
+    border-color: #80bdff; /* Highlight color on focus */
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); /* Glow effect like Bootstrap */
+    outline: none; /* Remove default browser outline */
+}
+
+/* Style the container holding the selected value(s) or placeholder */
+.modern-dropdown .Select__value-container {
+    padding: 2px 8px; /* Adjust padding inside the control */
+}
+
+/* Style the placeholder text */
+.modern-dropdown .Select__placeholder {
+    color: #aaa; /* Lighter color for placeholder */
+    font-size: 0.9rem;
+}
+
+/* Style the single selected value */
+.modern-dropdown .Select__single-value {
+    color: #333; /* Darker text for the selected item */
+    font-size: 0.9rem; /* Match font size from inspiration */
+}
+
+/* Hide the default indicator separator */
+.modern-dropdown .Select__indicator-separator {
+    display: none;
+}
+
+/* Style the dropdown arrow indicator */
+.modern-dropdown .Select__indicator {
+    color: #ccc;
+    padding: 8px;
+    transition: color 0.2s ease-in-out;
+}
+.modern-dropdown .Select__indicator:hover {
+    color: #888; /* Darker arrow on hover */
+}
+
+/* Style the dropdown menu (the list that appears) */
+.modern-dropdown .Select__menu {
+    margin-top: 4px; /* Small space between control and menu */
+    background-color: #ffffff;
+    border: 1px solid #ddd; /* Slightly lighter border for menu */
+    border-radius: 8px; /* Rounded corners for the menu */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Slightly larger shadow for menu */
+    overflow: hidden; /* Ensures options respect the border-radius */
+    font-size: 0.9rem; /* Font size for options */
+}
+
+/* Style individual options in the dropdown menu */
+.modern-dropdown .Select__option {
+    padding: 10px 12px; /* Padding within options */
+    cursor: pointer;
+    transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+/* Style option on hover/focus */
+.modern-dropdown .Select__option--is-focused {
+    background-color: #f0f0f0; /* Light background on hover/focus */
+    color: #333;
+}
+
+/* Style the selected option in the list */
+.modern-dropdown .Select__option--is-selected {
+    background-color: #007bff; /* Example primary color for selected */
+    color: white;
+    font-weight: bold;
+}
+/* Ensure selected+focused state looks right */
+ .modern-dropdown .Select__option--is-selected:hover,
+ .modern-dropdown .Select__option--is-selected.Select__option--is-focused {
+     background-color: #0056b3; /* Darker shade of primary */
+     color: white;
+ }
+
+/* ---- Optional: Multi-Select Specific Styling ---- */
+
+.modern-dropdown .Select__multi-value {
+    background-color: #e7f0ff; /* Light blue background for tags */
+    border-radius: 4px;
+    padding: 2px 5px;
+    margin: 2px;
+    font-size: 0.85rem;
+    display: inline-flex; /* Align items nicely */
+    align-items: center;
+}
+
+.modern-dropdown .Select__multi-value__label {
+    color: #0056b3; /* Darker blue text */
+    padding-right: 4px; /* Space before remove icon */
+}
+
+.modern-dropdown .Select__multi-value__remove {
+    color: #0056b3;
+    cursor: pointer;
+    border-left: 1px solid #b3d7ff; /* Separator */
+    padding-left: 4px;
+    margin-left: 2px;
+}
+
+.modern-dropdown .Select__multi-value__remove:hover {
+    background-color: #cce0ff; /* Slightly darker background on remove hover */
+    color: #003d80; /* Even darker blue */
+}
+
+/* Style the clear indicator (the 'x' to clear selection) */
+.modern-dropdown .Select__clear-indicator {
+    color: #ccc;
+    padding: 8px;
+    cursor: pointer;
+    transition: color 0.2s ease-in-out;
+}
+.modern-dropdown .Select__clear-indicator:hover {
+    color: #e60000; /* Red on hover */
+}
+
 #chat-history {
     background-color: #ffffff;
     border: 1px solid #ccc;
-    border-radius: 10px; /* Rounded corners */
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    /*box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);*/
     font-size: 0.9rem;
     margin-bottom: 20px;
     min-height: 400px;
+    max-height: 60vh; /* Optional: Limit height */
     overflow-y: scroll;
+    padding: 15px;
+    /* Removed flexbox properties */
 }
+
+#chat-history .message-wrapper {
+    display: block;
+    clear: both;
+    margin-bottom: 30px;
+}
+
+
+
+/* User messages (right-aligned) */
+#chat-history .message-user {
+    padding: 10px 15px;
+    border-radius: 18px;
+    word-wrap: break-word; /* Ensure long words wrap */
+    min-width: 100px;      /* Minimum width of a bubble */
+    max-width: 75%;      /* Max width of a bubble */
+    position: relative;
+    line-height: 1.4;
+    display: inline-block;     /* Ensure each message is a block, forcing vertical stacking */
+    clear: both;        /* Prevent any potential floating issues */
+    background-color: #DCF8C6; /* Light green for user */
+    color: #111;
+    margin-left: auto; /* Push block right */
+    margin-right: 0;   /* Anchor block right */
+    float: right;
+    margin-bottom: 30px;
+    /* text-align: left; /* Text inside bubble - can change to right if preferred */
+}
+
+#chat-history .message-wrapper-system {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+#chat-history .message-system {
+    background-color: #f0f0f0;
+    color: #555;
+    text-align: center;
+    max-width: 90%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    border-radius: 8px;
+    font-style: italic;
+    font-size: 0.85rem;
+    padding: 15px 20px 0 20px;
+
+}
+
+/* Other messages (left-aligned - these inherit from the base style) */
+#chat-history .message-agent {
+   /* Styles are inherited from the base #chat-history > div */
+   /* No overrides needed unless you want a different background/color */
+    padding: 10px 15px;
+    border-radius: 18px;
+    word-wrap: break-word; /* Ensure long words wrap */
+    min-width: 100px;      /* Minimum width of a bubble */
+    max-width: 75%;      /* Max width of a bubble */
+    position: relative;
+    line-height: 1.4;
+    display: inline-block;     /* Ensure each message is a block, forcing vertical stacking */
+    clear: both;        /* Prevent any potential floating issues */
+   background-color: #E5E5EA;
+   color: #111;
+   text-align: left;
+   margin-left: 0;
+   margin-right: auto;
+    margin-bottom: 30px;
+}
+
+#console {
+    background-color: #323232;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    /*box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);*/
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+    min-height: 50px;
+    max-height: 150px; /* Optional: Limit height */
+    overflow-y: scroll;
+    padding: 0 15px 15px 15px;
+}
+
+.console-text {
+    background-color: #323232;
+    color: #ffffff;
+    font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
+    white-space: pre-wrap; /* Preserve whitespace */
+}
+
+.code-div{
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    background-color: #ffffff;
+    padding: 0 15px 15px 15px;
+}
+
+/* Style links within messages */
+#chat-history a {
+    color: #007BFF;
+    text-decoration: none;
+}
+#chat-history a:hover {
+    text-decoration: underline;
+}
+
 
 /* Chat input styling with rounding */
 #chat-input {
@@ -71,12 +317,12 @@ body {
 
 button{
     background-color: #4f752d;
-    margin-right: 30px;
     color: #fff;
     border: none;
     border-radius: 10px;  /* Rounded corners */
-    padding: 10px 20px;
-    margin-top: 10px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
     cursor: pointer;
     transition: background-color 0.3s ease;
 }
@@ -85,17 +331,12 @@ button:hover{
     background-color: #334c1d;
 }
 
+
 /* Send button with rounding */
 #send-chat-button{
     background-color: #007bff;
-    margin-right: 30px;
-    color: #fff;
-    border: none;
-    border-radius: 10px;  /* Rounded corners */
-    padding: 10px 20px;
+    width: 100%;
     margin-top: 10px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
 }
 
 #send-chat-button:hover{
@@ -103,51 +344,57 @@ button:hover{
 }
 
 #reset-button {
-    background-color: grey;
-    color: #fff;
-    border: none;
-    border-radius: 10px;  /* Rounded corners */
-    padding: 10px 20px;
-    margin-top: 10px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
+    background-color: #e64034; /* Red */
+    width: 49.5%;
+    margin-right: 1%;
 }
 
 #reset-button:hover {
-    background-color: darkgray;
+    background-color: #c62828; /* Darker red */
 }
 
-
-
-/* Base style for all chat messages inside the container */
-#chat-history div{
-    padding: 10px 15px;
-    border-radius: 15px;
-    margin: 5px 0;
-    word-wrap: break-word;
+#back-button {
+    background-color: #9f9f9f;
+    width: 49.5%;
 }
 
-/* Styling for messages sent by the user ("You") */
-#you-msg {
-    background-color: #dcf8c6; /* Light green bubble */
-    align-self: flex-end;
-    text-align: right;
+#back-button:hover {
+    background-color: #777777;
 }
 
-/* Styling for messages from the Bot */
-#bot-msg {
-    background-color: #ffffff;
-    align-self: flex-start;
-    text-align: left;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+#download-exec-button {
+    margin-top: 10px;
+    background-color: #794caf; /* Purple */
+    width: 100%;
 }
 
-/* Styling for system messages */
-#system-msg {
-    background-color: #f0f0f0;
-    align-self: center;
-    text-align: center;
-    font-style: italic;
+#download-exec-button:hover {
+    background-color: #5e2a8c; /* Darker purple */
+}
+
+#download-zip-button {
+    width: 100%;
+}
+
+.output-button {
+    margin-right: 10px;
+}
+
+.agent-button {
+    width: 100%;
+    padding-left: 20px;
+    padding-right: 20px;
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+.agent-button-title {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.agent-button-description {
+    color: #dadada;
 }
 
 /* -----------------------------
@@ -158,7 +405,8 @@ button:hover{
 #upload-data {
     width: 100%;
     height: 60px;
-    border: none;
+    border: 1px solid #ccc;
+    border-radius: 10px;  /* Rounded corners */
     text-align: center;
     margin: 10px 0;
     background-color: #ffffff;
@@ -178,10 +426,11 @@ button:hover{
 /* Dashboard container with rounding */
 #dashboard {
     background-color: #ffffff;
+    border: 1px solid #ccc;
     border-radius: 10px;  /* Rounded corners */
     padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    height: 500px;
+    /*box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);*/
+    height: 550px;
 }
 
 iframe {

@@ -14,3 +14,5 @@ plotly
 seaborn
 scikit-learn
 datetime
+python-socketio
+dash_socketio

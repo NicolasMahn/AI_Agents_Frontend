@@ -1,9 +1,6 @@
-import json
 import urllib.parse
 import requests
 
-import config
-import frontend
 from scrt import BACKEND_HOST, BACKEND_PORT
 
 backend_url = f'http://{BACKEND_HOST}:{BACKEND_PORT}'
@@ -68,11 +65,6 @@ def get_chat_history(selected_chat: str, agent):
         return get_request(f'{agent}/get_chat_history/{selected_chat}')
     return None
 
-def agent_codes(agent):
-    if agent:
-        return get_request(f'{agent}/does_agent_code')
-    return None
-
 def get_available_chats(agent):
     if agent:
         return get_request(f'{agent}/get_chats')
@@ -91,6 +83,11 @@ def get_code_names(agent):
 def get_agents():
     return get_request('get_agents')
 
+def get_agent_description(agent):
+    if agent:
+        return get_request(f'get_agent_description/{agent}')
+    return None
+
 def get_available_models():
     return get_request(f'get_available_models')
 
@@ -100,15 +97,25 @@ def set_model(model):
 def get_model():
     return get_request('get_model')
 
-def get_file(filepath_on_server, save_directory):
-    response = requests.get(f'{backend_url}/{filepath_on_server}')
+def get_top_k():
+    return get_request('get_top_k')
+
+def set_top_k(k):
+    return post_request(f'set_top_k/{k}')
+
+def get_long_term_memory_display():
+    return get_request('get_long_memory_display')
+
+def set_long_term_memory_display(long_memory_display):
+    return post_request(f'set_long_memory_display/{long_memory_display}')
+
+def get_file(filepath_on_server):
+    response = requests.get(f'{backend_url}/get_file/{filepath_on_server}')
     if response.status_code == 200:
-        with open(f'{save_directory}/{filepath_on_server.split("/")[-1]}', 'wb') as f:
-            f.write(response.content)
-        return True
+        return response.content
     else:
         print(f"Failed to download file: {response.status_code}")
-
+        return None
 
 
 

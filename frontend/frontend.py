@@ -1,11 +1,12 @@
 import time
-from distutils.command.config import config
-
+import scrt
 import dash
 from dash import html, dcc, Input, Output, State
+from dash_socketio import DashSocketIO
 import dash_bootstrap_components as dbc
-
 import backend_manager
+
+
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
 
@@ -41,15 +42,14 @@ app.index_string = '''
 </html>
 '''
 
-
-
-
-
 app.layout = dbc.Container([
     dcc.Location(id='url', refresh=False),
     dcc.Interval(id='code-interval', interval=30000, n_intervals=0),
     dcc.Store(id='displaying-type'),
     dcc.Store(id='agent-type'),
+    DashSocketIO(id="socketio",
+                 eventNames=["top_k_switch", "long_memory_switch", "model_switch", "chat_update", "code_update"],
+                 url=f"http://{scrt.BACKEND_HOST}:{scrt.BACKEND_PORT}", connected=True),
     html.Div(id='page-content')
 ], fluid=True)
 
@@ -59,23 +59,31 @@ app.layout = dbc.Container([
     [Input('url', 'pathname'),
      Input('code-interval', 'n_intervals')],
     [State('displaying-type', 'data'),
-     State('agent-type', 'data')],
+     State('agent-type', 'data'),
+     State("url", "search")],
   )
-def display_page(pathname,  _, displaying, agent):
-    time.sleep(0.1)
-    if pathname == f'/{agent}' and agent:
-        agent_has_coded = backend_manager.agent_codes(agent) and len(backend_manager.get_code_names(agent)) > 0
-        if agent_has_coded and displaying != "chat_code":
-            return chat_code.layout, "chat_code"
-        elif agent_has_coded:
-            return dash.no_update, "chat_code"
-        elif displaying != "chat":
-            return chat.layout, "chat"
+def display_page(pathname,  _, displaying, agent, search):
+    # Extract the key from the URL
+    if search and scrt.FRONTEND_KEY in search or True: #key is deactivated
+        time.sleep(0.1)
+        if pathname == f'/{agent}' and agent:
+            agent_has_coded = len(backend_manager.get_code_names(agent)) > 0
+            if agent_has_coded and displaying != "chat_code":
+                return html.Div(chat_code.layout), "chat_code"
+            elif agent_has_coded:
+                return dash.no_update, "chat_code"
+            elif displaying != "chat":
+                return html.Div(chat.layout), "chat"
+            else:
+                return dash.no_update, "chat"
         else:
-            return dash.no_update, "chat"
-    else:
-        return select_agent.layout, "select_agent"
+            return html.Div(select_agent.layout), "select_agent"
 
+
+    return html.Div([
+        html.H1("Access Denied"),
+        html.P("You need to provide a valid key to access this page."),
+    ]), "access_denied"
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)

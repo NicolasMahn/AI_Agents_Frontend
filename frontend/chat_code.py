@@ -1,134 +1,211 @@
 import atexit
+import os
 import signal
 import time
 
 import dash
-from dash import html, dcc, Input, Output, State, no_update, callback_context
+from dash import html, dcc, Input, Output, State, no_update, callback_context, ALL
 import dash_bootstrap_components as dbc
-from eventlet.green.profile import thread
+
 from eventlet.tpool import threading
+
 
 import backend_manager
 from code_runners import CodeManager, is_dash_server_responding
+from frontend import chat
 
 code_manager = CodeManager()
+
+chat_div = chat.chat_div
 
 # Add this new Div to the layout
 layout = dbc.Container([
     dbc.Row([
         dbc.Col([
-            html.Div([
-                dcc.Dropdown(id="model-dropdown", placeholder="select model"),
-                dcc.Dropdown(id="chat-dropdown", placeholder="select chat"),
-                html.Div(id="chat-history"),
-                dcc.Textarea(
-                    id="chat-input",
-                    placeholder="Enter your message..."
-                ),
-                html.Button("Send", id="send-chat-button", n_clicks=0),
-                html.Button("Reset Agent", id="reset-button", n_clicks=0),
-                dcc.Upload(
-                    id='upload-data',
-                    children=html.Div(['Drag and Drop or ', html.A('Select a File')]),
-                    multiple=False
-                ),
-                html.Div(id="uploaded-files"),
-            ])
+            chat_div
 
         ], width=6),
         dbc.Col([
-            dcc.Dropdown(id="code-version", placeholder="select a code version (default latest)", value="latest"),
+            html.Label("Select a Code Version: "),
+            dcc.Dropdown(id="code-selector", placeholder="select a code version (default latest)", className="modern-dropdown"),
             html.Div(id="code-div"),
         ], width=6)
     ]),
-    dcc.Interval(id="longer-interval", interval=10000, n_intervals=0),
-    dcc.Interval(id="chat-interval", interval=1000, n_intervals=0),
     dcc.Store(id="code_name"),
 ],id="chat_code", fluid=True)
 
 @dash.callback(
-    Output("dashboard", "children", allow_duplicate=True),
-    Input("code-version", "value"),
-    [State("code_name", "data"),
-     State("agent-type", "data")],
-    prevent_initial_call=True,
+    Output("dashboard", "children"),
+    Input("code-selector", "value"),
+     State("agent-type", "data"),
 )
-def update_dashboard_div(version, code_name, agent):
+def update_dashboard_div(code_name_selector, agent):
+    if code_name_selector.startswith("latest_"):
+        code_name_selector = code_name_selector.replace("latest_", "")
+
     time.sleep(0.1)
-    code = code_manager.get_code(agent, version)
-    if code and code.frontend and version != code_name:
-        while not code.frontend_running:
-            time.sleep(1)
+    code = code_manager.get_code(agent, code_name_selector)
+
+    print("waiting on Frontend Server ", end="")
+    i = 0
+    while not code.running:
+        print(".", end="")
+        time.sleep(1)
+        i += 1
+        if i > 100:
+            return dash.no_update
+
+    for i in range(30):
         if is_dash_server_responding(code.port):
-            return html.Div(html.Iframe(src=f"http://127.0.0.1:{code.port}/"), id="dashboard"),
+            print(f" Server is responding on port {code.port}")
+            return html.Iframe(src=f"http://localhost:{code.port}/")
+        else:
+            print(".", end="")
+            time.sleep(1)
     return dash.no_update
 
+
 @dash.callback(
-    [Output("code-version", "options"),
-     Output("code-version", "value")],
-    Input("longer-interval", "n_intervals"),
-    [State("code-version", "value"),
-     State("agent-type", "data")],
+    [Output("code-selector", "options"),
+     Output("code-selector", "value")],
+    Input("socketio", "data-code_update"),
+    State("code-selector", "value"),
+    State("agent-type", "data"),
+    State("code-selector", "options")
 )
-def update_code_dropdown_dev(_, version, agent):
-    code_names = code_manager.get_code_names(agent)
-    if not version:
-        version = code_names[-1] if code_names else dash.no_update
-    return code_names, version
+def update_code_dropdown(message, code_name, agent, old_code_options):
+
+    if not message or agent in message:
+        code_names = code_manager.get_code_names(agent)
+
+        if old_code_options:
+            new_code_names = [cn for cn in code_names if cn not in [co["value"] for co in old_code_options]]
+            options = old_code_options
+        else:
+            new_code_names = code_names
+            options = []
+
+        new_code_name = dash.no_update
+        if new_code_names:
+            options = [option for option in options if not option["label"].startswith("Latest")]
+            for option in options:
+                parts = option["value"].split("_")
+                option["datetime"] = parts[6] + "_" + parts[7]
+
+            for ncn in new_code_names:
+                parts = ncn.split("_")
+                version = parts[4]
+                datetime_ = parts[6] + "_" + parts[7]
+                try:
+                    tag = parts[9]
+                except IndexError:
+                    tag = None
+
+                label = ""
+                if tag:
+                    label += f"Tag: {tag}; "
+                if version:
+                    label += f"Version: {version}; "
+                label += f"Date: {datetime_}"
+
+                options.append({"label": label, "value": ncn, "datetime": datetime_})
+
+            options = sorted(options, key=lambda x: x["datetime"], reverse=True)
+
+            for option in options:
+                del option["datetime"]
+
+            options.insert(0, {"label": f"Latest ({options[0]['label']})",
+                                                "value": f"latest_{options[0]['value']}"})
+
+            if not code_name or code_name.startswith("latest_"):
+                new_code_name = options[0]["value"]
+
+        return options, new_code_name
+    else:
+        # If the code was generated by a different agent
+        return dash.no_update, dash.no_update
 
 @dash.callback(
     [Output("code_name", "data"),
      Output("code-div", "children")],
-    Input("code-version", "value"),
+    Input("code-selector", "value"),
     [State("code_name", "data"),
      State("agent-type", "data")]
 )
-def update_code_div(version, code_name, agent):
-    code = code_manager.get_code(agent, version)
+def update_code_div(code_name_selector, stored_code_name, agent):
+    if code_name_selector.startswith("latest_"):
+        code_name_selector = code_name_selector.replace("latest_", "")
 
-    if version != code_name:
+    code = code_manager.get_code(agent, code_name_selector)
+
+    if code_name_selector != stored_code_name:
         code_manager.stop_all()
         threading.Thread(target=code.execute).start()
 
-        has_output_files = code.has_output_files() #TODO
         if code.frontend:
-            code_div = html.Div([
+            code_div = [
                 dcc.Loading(
                     id="loading-dashboard",
                     type="default",
-                    children=[
-                        html.Div(id="dashboard"),
-                    ]
+                    children=html.Div(id="dashboard"),
                 ),
                 dcc.Loading(
-                    id="loading-download",
-                    type="default",
-                    children=[
-                        html.Button("Download Executable", id="download-exec-button", n_clicks=0),
-                        dcc.Download(id="download-exec")
-                    ]
+                   id="loading-download",
+                   type="default",
+                   children=[
+                       html.Button("Download Executable (beta)", id="download-exec-button", n_clicks=0),
+                       dcc.Download(id="download-exec")
+                   ]
                 ),
-                html.Div(id="console"),
-                dcc.Markdown(f"```python {code.get_display_code()}```")
-            ])
+            ]
         else:
-            code_div = html.Div([
-                html.Div(id="console"),
-                dcc.Markdown(f"```python {code.get_display_code()}```")
-            ])
-        code_name = code.get_name()
-        return code_name, code_div
+            code_div = []
+        code_div.extend([
+
+            html.Button("Download Code as ZIP", id="download-zip-button", n_clicks=0),
+            html.Div(id="output-buttons-container"),
+            dcc.Download(id="download-zip"),
+            dcc.Download(id="download-output"),
+            html.Div(id="console"),
+            html.Div(dcc.Markdown(f"```python {code.get_display_code()}```"), className="code-div"),
+            dcc.Interval(id="output-check-interval", interval=5000, n_intervals=0),
+            dcc.Interval(id="short-interval", interval=3000, n_intervals=0)
+        ])
+        return code_name_selector, html.Div(code_div)
     return dash.no_update, dash.no_update
+
+@dash.callback(
+    Output("download-zip", "data"),
+    Input("download-zip-button", "n_clicks"),
+    State("code-selector", "value"),
+    State("agent-type", "data"),
+    prevent_initial_call=True
+)
+def download_code_zip(_, code_name_selector, agent):
+    if code_name_selector.startswith("latest_"):
+        code_name_selector = code_name_selector.replace("latest_", "")
+        code_name_selector = code_name_selector.replace("latest_", "")
+
+    code = code_manager.get_code(agent, code_name_selector)
+    if code:
+        zip_path = code.zip_code_dir()
+        if zip_path:
+            return dcc.send_file(zip_path)
+    return no_update
 
 @dash.callback(
     Output("download-exec", "data"),
     Input("download-exec-button", "n_clicks"),
-    [State("code-version", "value"),
+    [State("code-selector", "value"),
      State("agent-type", "data")],
     prevent_initial_call=True
 )
-def download_executable(n_clicks, version, agent):
-    code = code_manager.get_code(agent, version)
+def download_executable(_, code_name_selector, agent):
+    if code_name_selector.startswith("latest_"):
+        code_name_selector = code_name_selector.replace("latest_", "")
+
+    code = code_manager.get_code(agent, code_name_selector)
     if code and code.frontend:
         exec_path = code.create_executable()
         if exec_path:
@@ -137,23 +214,83 @@ def download_executable(n_clicks, version, agent):
 
 @dash.callback(
     Output("console", "children"),
-    [Input("code-version", "value"),
-     Input("chat-interval", "n_intervals")],
+    [Input("code-selector", "value"),
+     Input("short-interval", "n_intervals")],
     State("agent-type", "data")
 )
-def update_console(version, _, agent):
+def update_console(code_name_selector, _, agent):
+    if code_name_selector.startswith("latest_"):
+        code_name_selector = code_name_selector.replace("latest_", "")
+
     time.sleep(0.1)
-    code = code_manager.get_code(agent, version)
+    code = code_manager.get_code(agent, code_name_selector)
 
     if not code:
         return "No terminal available."
 
-    return dcc.Markdown(f"```txt {code.logs}```")
+    return html.Div(f"{code.logs}", className="console-text")
 
+
+
+@dash.callback(
+    Output("output-buttons-container", "children"),
+    Input("output-check-interval", "n_intervals"),
+    State("agent-type", "data"),
+    State("code-selector", "value"),
+    prevent_initial_call=True
+)
+def update_output_buttons(_, agent, code_name_selector):
+    if code_name_selector.startswith("latest_"):
+        code_name_selector = code_name_selector.replace("latest_", "")
+    code = code_manager.get_code(agent, code_name_selector)
+
+    output_dir = code.output_dir
+
+    if not os.path.exists(output_dir):
+        return no_update
+
+    # List all files in the output directory
+    files = os.listdir(output_dir)
+    if not files:
+        return no_update
+
+    # Create a button for each file
+    buttons = []
+    for file in files:
+        file_path = os.path.join(output_dir, file)
+        if os.path.isfile(file_path):
+            buttons.append(
+                html.Button(file, id={"type": "download-button", "index": file}, className="output-button", n_clicks=0)
+            )
+    return buttons
+
+@dash.callback(
+    Output("download-output", "data"),
+    Input({"type": "download-button", "index": ALL}, "n_clicks"),
+    State({"type": "download-button", "index": ALL}, "id"),
+    State("agent-type", "data"),
+    State("code-selector", "value"),
+    prevent_initial_call=True
+)
+def download_file(n_clicks, ids, agent, code_name_selector):
+    # Find the button that was clicked
+    if ids:
+        for n_clicks, id in zip(n_clicks, ids):
+            if n_clicks > 0:
+                file_name = id["index"]
+
+                if code_name_selector.startswith("latest_"):
+                    code_name_selector = code_name_selector.replace("latest_", "")
+                code = code_manager.get_code(agent, code_name_selector)
+
+                file_path = os.path.join(code.output_dir, file_name)  # Replace with the actual output directory path
+                if os.path.exists(file_path):
+                    return dcc.send_file(file_path)
+                return no_update
 
 # Register cleanup handlers
 def cleanup_on_exit():
-    code_manager.stop_all()
+    code_manager.delete_all()
 
 atexit.register(cleanup_on_exit)
 signal.signal(signal.SIGTERM, lambda signum, frame: cleanup_on_exit())

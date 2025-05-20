@@ -1,4 +1,6 @@
 import atexit
+import os
+import shutil
 import signal
 import time
 
@@ -18,20 +20,10 @@ def is_dash_server_responding(port, retries=10, delay=1):
             response = requests.get(url, timeout=5)
             # Check for successful status codes (e.g., 2xx)
             if response.status_code >= 200 and response.status_code < 300:
-                # print(f"Success: Dash server responded with status {response.status_code} from {url}")
                 return True
-            # else:
-                # print(f"Attempt {i + 1}/{retries}: Server responded with status {response.status_code}")
 
-        except requests.exceptions.ConnectionError:
-            pass
-            # print(f"Attempt {i + 1}/{retries}: Connection to {url} failed.")
-        except requests.exceptions.Timeout:
-            pass
-            # print(f"Attempt {i + 1}/{retries}: Request to {url} timed out.")
         except Exception as e:
             pass
-            # print(f"Attempt {i + 1}/{retries}: An unexpected error occurred: {e}")
 
         if i < retries - 1:
             time.sleep(delay)
@@ -69,19 +61,31 @@ class CodeManager:
             code_list = backend_manager.get_code(agent, code_name)
             self.codes[code_name] = Code(code_name,
                                          code_list[0], # code
-                                         code_list[2], # requirements
-                                         code_list[3], # code_imports
-                                         code_list[4], # previous_outputs
-                                         code_list[5], # input_files
-                                         code_list[7], # frontend
+                                         code_list[1], # requirements
+                                         code_list[2], # code_imports
+                                         code_list[3], # input_files
+                                         code_list[4], # frontend
                                          f"code/{code_name}",
                                          agent) # code_dir
 
-
         return self.codes[code_name]
+
+
 
     def stop_all(self):
         for _, code_obj in self.codes.items():
             if code_obj:
-                code_obj.stop()
+                try:
+                    code_obj.stop()
+                except Exception as e:
+                    print(f"Error stopping code: {e}")
+
+    def delete_all(self):
+        for _, code_obj in self.codes.items():
+            if code_obj:
+                try:
+                    code_obj.delete()
+                    print(f"Code {code_obj.get_name()} deleted.")
+                except Exception as e:
+                    print(f"Error deleting code: {e}")
 
