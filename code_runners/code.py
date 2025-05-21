@@ -133,7 +133,7 @@ class Code:
 
         start_command = f"python /code/generated_code.py"
 
-        if D_IN_D and False:
+        if D_IN_D:
             # Use the Docker-in-Docker
             input_dir_index = self.input_dir.index("code")
             input_dir = self.input_dir[input_dir_index - 1:]
@@ -178,7 +178,7 @@ if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port={self.port})
 """
                     )
-            if D_IN_D and False:
+            if D_IN_D:
                 main_path_index = self.code_dir.index("code")
                 main_path = self.code_dir[main_path_index - 1:]
             print(f"Main path: {main_path}")
