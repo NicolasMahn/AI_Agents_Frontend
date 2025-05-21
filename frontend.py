@@ -78,11 +78,11 @@ def display_page(pathname,  _, displaying, agent, search):
         else:
             return html.Div(select_agent.layout), "select_agent"
 
-
     return html.Div([
         html.H1("Access Denied"),
         html.P("You need to provide a valid key to access this page."),
     ]), "access_denied"
+
 
 if __name__ == "__main__":
     if os.getenv("D_IN_D", False):

@@ -14,7 +14,7 @@ from code_runners.code import Code
 
 def is_dash_server_responding(port, retries=10, delay=1):
     """Checks if the server responds with a successful HTTP status code."""
-    url = f"http://127.0.0.1:{port}/"
+    url = f"http://0.0.0.0:{port}/"
     for i in range(retries):
         try:
             response = requests.get(url, timeout=5)

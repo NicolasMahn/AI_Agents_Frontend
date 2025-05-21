@@ -289,11 +289,11 @@ def download_file(n_clicks, ids, agent, code_name_selector):
                 return no_update
 
 # Register cleanup handlers
-def cleanup_on_exit():
-    code_manager.delete_all()
+#def cleanup_on_exit():
+#    code_manager.delete_all()
 
-atexit.register(cleanup_on_exit)
-signal.signal(signal.SIGTERM, lambda signum, frame: cleanup_on_exit())
-signal.signal(signal.SIGINT, lambda signum, frame: cleanup_on_exit())
+#atexit.register(cleanup_on_exit)
+#signal.signal(signal.SIGTERM, lambda signum, frame: cleanup_on_exit())
+#signal.signal(signal.SIGINT, lambda signum, frame: cleanup_on_exit())
 
 
