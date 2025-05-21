@@ -24,6 +24,9 @@ DEFAULT_REQUIREMENTS = {
 MEM_LIMIT = "1025m"
 CPU_QUOTA = 100000
 
+CUSTOM_PYTHON_DOCKERFILE = os.getenv("CUSTOM_PYTHON_DOCKERFILE", "custom-python")
+D_IN_D = os.getenv("D_IN_D", False)
+
 def find_available_port(host='localhost'):
     """
     Finds and reserves an available port by binding to port 0.
@@ -129,9 +132,21 @@ class Code:
                                             "os.makedirs('output', exist_ok=True)\n"))
 
         start_command = f"python /code/generated_code.py"
-        volumes = {code_path: {"bind": "/code/generated_code.py", "mode": "rw"},
-                   self.input_dir: {"bind": "/code/uploads/", "mode": "rw"},
-                   self.output_dir: {"bind": "/code/output/", "mode": "rw"}}
+
+        if D_IN_D:
+            # Use the Docker-in-Docker
+            input_dir_index = self.input_dir.index("agent_files")
+            input_dir = self.input_dir[input_dir_index - 1:]
+            output_dir_index = self.output_dir.index("agent_files")
+            output_dir = self.output_dir[output_dir_index - 1:]
+
+            volumes = {code_path: {"bind": "/code/agent_code.py", "mode": "rw"},
+                       input_dir: {"bind": "/code/uploads/", "mode": "rw"},
+                       output_dir: {"bind": "/code/output/", "mode": "rw"}}
+        else:
+            volumes = {code_path: {"bind": "/code/generated_code.py", "mode": "rw"},
+                       self.input_dir: {"bind": "/code/uploads/", "mode": "rw"},
+                       self.output_dir: {"bind": "/code/output/", "mode": "rw"}}
         client = docker.from_env()
 
         if self.frontend:
@@ -163,7 +178,7 @@ if __name__ == '__main__':
 
 
             self.container = client.containers.run(
-                image="custom-python",
+                image=CUSTOM_PYTHON_DOCKERFILE,
                 command=command,
                 ports={self.port: self.port},
                 volumes=volumes,
@@ -174,7 +189,7 @@ if __name__ == '__main__':
             )
         else:
             self.container = client.containers.run(
-                image="custom-python",
+                image=CUSTOM_PYTHON_DOCKERFILE,
                 command=command,
                 volumes=volumes,
                 detach=True,

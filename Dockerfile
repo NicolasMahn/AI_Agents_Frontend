@@ -13,14 +13,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Make port 80 available to the world outside this container
 EXPOSE 80
 
-# Set build arguments for secrets
-ARG BACKEND_HOST
-ARG BACKEND_PORT
-
-
-# Set environment variables for secrets
-ENV BACKEND_HOST=${BACKEND_HOST}
-ENV BACKEND_PORT=${BACKEND_PORT}
-
-# Run main.py when the container launches
-CMD ["python", "main.py"]
+#  Run main.py when the container launches
+CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:80", "main:app"]

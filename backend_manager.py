@@ -110,6 +110,10 @@ def set_long_term_memory_display(long_memory_display):
     return post_request(f'set_long_memory_display/{long_memory_display}')
 
 def get_file(filepath_on_server):
+    if filepath_on_server.startswith('app'):
+        filepath_on_server = filepath_on_server.replace('app', '')
+    elif filepath_on_server.startswith('/app'):
+        filepath_on_server = filepath_on_server.replace('/app', '')
     response = requests.get(f'{backend_url}/get_file/{filepath_on_server}')
     if response.status_code == 200:
         return response.content

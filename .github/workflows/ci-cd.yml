@@ -37,7 +37,5 @@ jobs:
 
     - name: Build and push Docker image
       run: |
-        docker build --build-arg BACKEND_HOST=${{ secrets.BACKEND_HOST }} \
-                     --build-arg BACKEND_PORT=${{ secrets.BACKEND_PORT }} \
-                     -t ${{ secrets.DOCKER_USERNAME }}/graph_generation:latest .
-        docker push ${{ secrets.DOCKER_USERNAME }}/graph_generation:latest
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/agent_frontend:latest .
+        docker push ${{ secrets.DOCKER_USERNAME }}/agent_frontend:latest
