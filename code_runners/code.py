@@ -139,6 +139,8 @@ class Code:
             input_dir = self.input_dir[input_dir_index - 1:]
             output_dir_index = self.output_dir.index("code")
             output_dir = self.output_dir[output_dir_index - 1:]
+            code_path_index = self.code_dir.index("code")
+            code_path = self.code_dir[code_path_index - 1:]
 
             volumes = {code_path: {"bind": "/code/agent_code.py", "mode": "rw"},
                        input_dir: {"bind": "/code/uploads/", "mode": "rw"},
@@ -173,6 +175,9 @@ if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port={self.port})
 """
                     )
+            if D_IN_D:
+                main_path_index = self.code_dir.index("code")
+                main_path = self.code_dir[main_path_index - 1:]
 
             volumes[main_path]= {"bind": "/code/main.py", "mode": "rw"}
 
