@@ -1,3 +1,4 @@
+import os
 import time
 import scrt
 import dash
@@ -84,4 +85,7 @@ def display_page(pathname,  _, displaying, agent, search):
     ]), "access_denied"
 
 if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False)
+    if os.getenv("D_IN_D", False):
+        app.run(debug=False, host='0.0.0.0', port=80)
+    else:
+        app.run(debug=True, use_reloader=False)
