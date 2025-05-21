@@ -15,4 +15,4 @@ RUN pip install --no-cache-dir gunicorn eventlet
 EXPOSE 80
 
 #  Run main.py when the container launches
-CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:80", "main:app"]
+CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:80", "frontend/main:app"]
