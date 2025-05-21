@@ -1,1 +1,0 @@
-from frontend.frontend import set_agent_from_url
