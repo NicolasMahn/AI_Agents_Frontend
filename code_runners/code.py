@@ -145,9 +145,7 @@ class Code:
             print(f"Input dir: {input_dir}")
             print(f"Output dir: {output_dir}")
 
-            volumes = {code_path: {"bind": "/code/agent_code.py", "mode": "rw"},
-                       input_dir: {"bind": "/code/uploads/", "mode": "rw"},
-                       output_dir: {"bind": "/code/output/", "mode": "rw"}}
+            volumes = {code_path: {"bind": "/code/", "mode": "rw"}}
         else:
             volumes = {code_path: {"bind": "/code/generated_code.py", "mode": "rw"},
                        self.input_dir: {"bind": "/code/uploads/", "mode": "rw"},
@@ -182,7 +180,6 @@ if __name__ == '__main__':
                 main_path_index = self.code_dir.index("code")
                 main_path = self.code_dir[main_path_index - 1:]
             print(f"Main path: {main_path}")
-            volumes[main_path]= {"bind": "/code/main.py", "mode": "rw"}
 
 
             self.container = client.containers.run(
