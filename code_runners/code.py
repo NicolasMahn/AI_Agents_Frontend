@@ -133,8 +133,10 @@ class Code:
 
         start_command = f"python /code/generated_code.py"
 
-        volumes = {code_path: {"bind": "/code/", "mode": "rw"}}
+        code_path_index = self.code_dir.index("code")
+        code_path = self.code_dir[code_path_index - 1:]
 
+        volumes = {code_path: {"bind": "/code/", "mode": "rw"}}
         client = docker.from_env()
 
         if self.frontend:
