@@ -133,7 +133,7 @@ class Code:
 
         start_command = f"python /code/generated_code.py"
 
-        if D_IN_D:
+        if D_IN_D and False:
             # Use the Docker-in-Docker
             input_dir_index = self.input_dir.index("code")
             input_dir = self.input_dir[input_dir_index - 1:]
@@ -141,6 +141,9 @@ class Code:
             output_dir = self.output_dir[output_dir_index - 1:]
             code_path_index = self.code_dir.index("code")
             code_path = self.code_dir[code_path_index - 1:]
+            print(f"Code path: {code_path}")
+            print(f"Input dir: {input_dir}")
+            print(f"Output dir: {output_dir}")
 
             volumes = {code_path: {"bind": "/code/agent_code.py", "mode": "rw"},
                        input_dir: {"bind": "/code/uploads/", "mode": "rw"},
@@ -175,10 +178,10 @@ if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port={self.port})
 """
                     )
-            if D_IN_D:
+            if D_IN_D and False:
                 main_path_index = self.code_dir.index("code")
                 main_path = self.code_dir[main_path_index - 1:]
-
+            print(f"Main path: {main_path}")
             volumes[main_path]= {"bind": "/code/main.py", "mode": "rw"}
 
 
