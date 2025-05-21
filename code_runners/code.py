@@ -66,14 +66,14 @@ class Code:
         self.input_files = input_files
 
 
-        self.input_dir = os.path.join(self.code_dir, "input_files")
+        self.input_dir = os.path.join(self.code_dir, "uploads")
         os.makedirs(self.input_dir, exist_ok=True)
 
         self.local_input_file_paths = []
         for file in self.input_files:
             file_content = backend_manager.get_file(file)
             if file_content:
-                local_path = f'{self.code_dir}/input_files/{os.path.basename(file)}'
+                local_path = f'{self.code_dir}/uploads/{os.path.basename(file)}'
                 self.local_input_file_paths.append(local_path)
                 with open(local_path, 'wb') as f:
                     f.write(file_content)
