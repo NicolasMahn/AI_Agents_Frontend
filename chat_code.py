@@ -58,7 +58,7 @@ def update_dashboard_div(code_name_selector, agent):
     for i in range(30):
         if is_dash_server_responding(code.port):
             print(f" Server is responding on port {code.port}")
-            return html.Iframe(src=f"http://localhost:{code.port}/")
+            return html.Iframe(src=f"http://0.0.0.0:{code.port}/")
         else:
             print(".", end="")
             time.sleep(1)

@@ -133,23 +133,8 @@ class Code:
 
         start_command = f"python /code/generated_code.py"
 
-        if D_IN_D:
-            # Use the Docker-in-Docker
-            input_dir_index = self.input_dir.index("code")
-            input_dir = self.input_dir[input_dir_index - 1:]
-            output_dir_index = self.output_dir.index("code")
-            output_dir = self.output_dir[output_dir_index - 1:]
-            code_path_index = self.code_dir.index("code")
-            code_path = self.code_dir[code_path_index - 1:]
-            print(f"Code path: {code_path}")
-            print(f"Input dir: {input_dir}")
-            print(f"Output dir: {output_dir}")
+        volumes = {code_path: {"bind": "/code/", "mode": "rw"}}
 
-            volumes = {code_path: {"bind": "/code/", "mode": "rw"}}
-        else:
-            volumes = {code_path: {"bind": "/code/generated_code.py", "mode": "rw"},
-                       self.input_dir: {"bind": "/code/uploads/", "mode": "rw"},
-                       self.output_dir: {"bind": "/code/output/", "mode": "rw"}}
         client = docker.from_env()
 
         if self.frontend:
@@ -176,11 +161,6 @@ if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port={self.port})
 """
                     )
-            if D_IN_D:
-                main_path_index = self.code_dir.index("code")
-                main_path = self.code_dir[main_path_index - 1:]
-            print(f"Main path: {main_path}")
-
 
             self.container = client.containers.run(
                 image=CUSTOM_PYTHON_DOCKERFILE,
