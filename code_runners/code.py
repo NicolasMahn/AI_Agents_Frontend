@@ -77,7 +77,7 @@ class Code:
                 with open(local_path, 'wb') as f:
                     f.write(file_content)
 
-        self.output_dir = os.path.join(self.code_dir, "output_files")
+        self.output_dir = os.path.join(self.code_dir, "output")
         os.makedirs(self.output_dir, exist_ok=True)
 
         self.container = None
