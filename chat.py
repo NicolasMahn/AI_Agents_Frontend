@@ -9,7 +9,7 @@ import backend_manager
 chat_div = html.Div([
     html.Label("Select a Model: "),
     dcc.Dropdown(id="model-dropdown", placeholder="select model", className="modern-dropdown"),
-    html.Label("Select the size of the context (0 - 10000):", style={"paddingRight": "10px"}),
+    html.Label("Select the number of added context items (top-k):", style={"paddingRight": "10px"}),
     html.Br(),
     dcc.Input(id="top-k-selection", type="number", min=0, max=10000, step=1,
               style={"width": "100px", "margin-left": "10px"}),
