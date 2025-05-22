@@ -14,7 +14,8 @@ from code_runners.code import Code
 
 def is_dash_server_responding(port, retries=10, delay=1):
     """Checks if the server responds with a successful HTTP status code."""
-    url = f"http://0.0.0.0:{port}/"
+    frontend_host = os.getenv("FRONTEND_HOST", "localhost")
+    url = f"http://{frontend_host}:{port}/"
     for i in range(retries):
         try:
             response = requests.get(url, timeout=5)
@@ -59,6 +60,9 @@ class CodeManager:
 
         if self.codes.get(code_name) is None:
             code_list = backend_manager.get_code(agent, code_name)
+            code_name = code_name.replace(" ", "_")
+            code_name = code_name.replace(".", "_")
+            code_name = code_name.replace("-", "_")
             self.codes[code_name] = Code(code_name,
                                          code_list[0], # code
                                          code_list[1], # requirements

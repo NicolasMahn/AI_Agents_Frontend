@@ -25,7 +25,6 @@ MEM_LIMIT = "1025m"
 CPU_QUOTA = 100000
 
 CUSTOM_PYTHON_DOCKERFILE = os.getenv("CUSTOM_PYTHON_DOCKERFILE", "custom-python")
-D_IN_D = os.getenv("D_IN_D", False)
 
 def find_available_port(host='localhost'):
     """
@@ -126,15 +125,16 @@ class Code:
 
     def execute(self):
         code_path = os.path.join(self.code_dir, "generated_code.py")
-        with open(code_path, "w") as f:
-            f.write(self.get_execution_code("import pickle \n"
-                                            "import os\n"
-                                            "os.makedirs('output', exist_ok=True)\n"))
+        with open(code_path, "w", encoding="utf-8") as f:
+            f.write(self.get_execution_code())
 
         start_command = f"python /code/generated_code.py"
 
-        code_path_index = self.code_dir.index("code")
-        code_path = self.code_dir[code_path_index - 1:]
+        if os.getenv("DOCKER", False):
+            code_path_index = self.code_dir.index("code")
+            code_path = self.code_dir[code_path_index - 1:]
+        else:
+            code_path = self.code_dir
 
         volumes = {code_path: {"bind": "/code/", "mode": "rw"}}
         client = docker.from_env()
@@ -163,7 +163,7 @@ if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port={self.port})
 """
                     )
-
+            print(f"Starting frontend on port {self.port}...")
             self.container = client.containers.run(
                 image=CUSTOM_PYTHON_DOCKERFILE,
                 command=command,
