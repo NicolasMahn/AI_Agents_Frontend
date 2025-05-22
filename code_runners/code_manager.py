@@ -18,7 +18,6 @@ def is_dash_server_responding(port, retries=10, delay=1):
     for i in range(retries):
         try:
             response = requests.get(url, timeout=5)
-            print(response)
             # Check for successful status codes (e.g., 2xx)
             if response.status_code >= 200 and response.status_code < 300:
                 return True
