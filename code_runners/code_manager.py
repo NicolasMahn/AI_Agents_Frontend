@@ -14,11 +14,11 @@ from code_runners.code import Code
 
 def is_dash_server_responding(port, retries=10, delay=1):
     """Checks if the server responds with a successful HTTP status code."""
-    frontend_host = os.getenv("FRONTEND_HOST", "localhost")
-    url = f"http://{frontend_host}:{port}/"
+    url = f"http://0.0.0.0:{port}/"
     for i in range(retries):
         try:
             response = requests.get(url, timeout=5)
+            print(response)
             # Check for successful status codes (e.g., 2xx)
             if response.status_code >= 200 and response.status_code < 300:
                 return True
@@ -60,16 +60,16 @@ class CodeManager:
 
         if self.codes.get(code_name) is None:
             code_list = backend_manager.get_code(agent, code_name)
-            code_name = code_name.replace(" ", "_")
-            code_name = code_name.replace(".", "_")
-            code_name = code_name.replace("-", "_")
+            technical_code_name = code_name.replace(" ", "_")
+            technical_code_name = technical_code_name.replace(".", "_")
+            technical_code_name = technical_code_name.replace("-", "_")
             self.codes[code_name] = Code(code_name,
                                          code_list[0], # code
                                          code_list[1], # requirements
                                          code_list[2], # code_imports
                                          code_list[3], # input_files
                                          code_list[4], # frontend
-                                         f"code/{code_name}",
+                                         f"code/{technical_code_name}",
                                          agent) # code_dir
 
         return self.codes[code_name]
