@@ -49,7 +49,7 @@ def find_available_port(host='localhost'):
 
 class Code:
     def __init__(self, name: str, code: str, requirements, code_imports: list,
-                 input_files: list, frontend: bool, directory, agent, run_locally = False):
+                 input_files: list, output_files: list, frontend: bool, directory, agent, run_locally = False):
         self.name =name
         self.code = code
         self.requirements = requirements
@@ -63,7 +63,7 @@ class Code:
         self.logs :str = ""
 
         self.input_files = input_files
-
+        self.output_files = output_files
 
         self.input_dir = os.path.join(self.code_dir, "uploads")
         os.makedirs(self.input_dir, exist_ok=True)
@@ -79,6 +79,15 @@ class Code:
 
         self.output_dir = os.path.join(self.code_dir, "output")
         os.makedirs(self.output_dir, exist_ok=True)
+
+        self.local_output_file_paths = []
+        for file in self.output_files:
+            file_content = backend_manager.get_file(file)
+            if file_content:
+                local_path = f'{self.code_dir}/output/{os.path.basename(file)}'
+                self.local_output_file_paths.append(local_path)
+                with open(local_path, 'wb') as f:
+                    f.write(file_content)
 
         self.container = None
         self.process = None

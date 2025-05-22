@@ -67,7 +67,8 @@ class CodeManager:
                                          code_list[1], # requirements
                                          code_list[2], # code_imports
                                          code_list[3], # input_files
-                                         code_list[4], # frontend
+                                         code_list[4], # output_files
+                                         code_list[5], # frontend
                                          f"code/{technical_code_name}",
                                          agent) # code_dir
 
