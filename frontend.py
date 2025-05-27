@@ -86,6 +86,6 @@ def display_page(pathname,  _, displaying, agent, search):
 
 if __name__ == "__main__":
     if os.getenv("DOCKER", False):
-        app.run(debug=False, host='0.0.0.0', port=443, ssl_context='adhoc')
+        app.run(debug=False, host='0.0.0.0', port=80)
     else:
         app.run(debug=True, use_reloader=False)
