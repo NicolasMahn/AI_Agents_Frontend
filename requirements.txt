@@ -17,4 +17,3 @@ datetime
 python-socketio
 dash_socketio
 pyinstaller
-cryptography
