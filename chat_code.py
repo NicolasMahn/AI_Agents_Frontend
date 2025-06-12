@@ -58,8 +58,8 @@ def update_dashboard_div(code_name_selector, agent):
     for i in range(30):
         if is_dash_server_responding(code.port):
             print(f" Server is responding on port {code.port}")
-            frontend_ip = os.getenv("FRONTEND_IP", "localhost")
-            return html.Iframe(src=f"http://{frontend_ip}:{code.port}/")
+            frontend_host = os.getenv("FRONTEND_HOST", "localhost")
+            return html.Iframe(src=f"https://{frontend_host}:{code.port}/")
         else:
             print(".", end="")
             time.sleep(1)

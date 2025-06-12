@@ -26,26 +26,59 @@ CPU_QUOTA = 100000
 
 CUSTOM_PYTHON_DOCKERFILE = os.getenv("CUSTOM_PYTHON_DOCKERFILE", "custom-python")
 
-def find_available_port(host='localhost'):
+DEFAULT_PORT_SUBSET = list(range(8000, 8101))
+
+
+def is_port_available(host: str, port: int) -> bool:
     """
-    Finds and reserves an available port by binding to port 0.
-    Returns the port number assigned by the OS.
+    Checks if a given port is available on the specified host by attempting to bind to it.
+
+    Args:
+        host (str): The host address (e.g., 'localhost', '0.0.0.0').
+        port (int): The port number to check.
+
+    Returns:
+        bool: True if the port is available, False otherwise.
     """
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        # Binding to port 0 tells the OS to pick an available ephemeral port.
-        # Binding to host '' or '0.0.0.0' checks availability on all interfaces,
-        # while 'localhost' checks only for loopback. Choose based on need.
-        s.bind((host, 0))
-        s.listen(1) # Optional: Put socket into listening state
-        # getsockname() returns the (host, port) tuple the socket is bound to.
-        port = s.getsockname()[1]
-        # The 'with' statement ensures the socket is closed, releasing the port
-        # *unless* you plan to use this exact socket object.
-        # If you need the port number for a *different* process/socket,
-        # this still has a small race window, but it's much smaller and often
-        # acceptable compared to the check-then-bind approach.
-        # The *best* approach is to use the *same socket* that bound to port 0.
-    return port
+    try:
+        # Create a new socket using IPv4 and TCP
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            # Set a small timeout to prevent hanging
+            s.settimeout(0.1)
+            # Try to bind the socket. If successful, the port is available.
+            s.bind((host, port))
+            return True
+    except OSError:
+        # An OSError (e.g., "Address already in use") means the port is not available.
+        return False
+
+
+def find_available_port(host: str = 'localhost'):
+    """
+    Finds an available port, prioritizing a specified subset of ports.
+
+    Args:
+        host (str): The host address to check availability on. Defaults to 'localhost'.
+        port_subset (list, optional): A list of port numbers to check first.
+                                       If None, it defaults to `DEFAULT_PORT_SUBSET`.
+
+    Returns:
+        int: An available port number, or None if no port in the specified
+             (or default) subset is available.
+    """
+    # Use the provided subset, or fall back to the global constant
+    ports_to_check = DEFAULT_PORT_SUBSET
+
+    if not ports_to_check:
+        print("Error: No port subset provided or the default subset is empty.")
+        return None
+
+    for port in ports_to_check:
+        if is_port_available(host, port):
+            return port
+
+    # If the loop finishes, no port in the subset was found to be available.
+    return None
 
 class Code:
     def __init__(self, name: str, code: str, requirements, code_imports: list,
